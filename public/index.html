@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM AI Assistant</title>
+  <style>
+    /* ── Reset & Variables ──────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --bg-card: #1a1d27;
+      --bg-input: #252830;
+      --bg-hover: #2a2d38;
+      --border: #2e3140;
+      --text: #e4e4e7;
+      --text-dim: #9ca3af;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --orange: #f97316;
+      --radius: 10px;
+      --shadow: 0 2px 12px rgba(0,0,0,.3);
+    }
+    html { font-size: 14px; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Sidebar ────────────────────────────────────── */
+    .sidebar {
+      width: 240px; min-width: 240px; background: var(--bg-card);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      padding: 0;
+    }
+    .sidebar-brand {
+      padding: 20px 20px 12px; font-size: 1.15rem; font-weight: 700;
+      letter-spacing: -.02em; color: var(--accent-hover);
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-brand small { display: block; font-size: .7rem; color: var(--text-dim); font-weight: 400; margin-top: 4px; letter-spacing: .04em; }
+    .sidebar nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+    .sidebar nav button {
+      background: none; border: none; color: var(--text-dim); font-size: .9rem;
+      padding: 10px 14px; text-align: left; border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; gap: 10px; transition: all .15s;
+    }
+    .sidebar nav button:hover { background: var(--bg-hover); color: var(--text); }
+    .sidebar nav button.active { background: var(--accent); color: #fff; font-weight: 600; }
+    .sidebar nav button .icon { font-size: 1.1rem; width: 22px; text-align: center; }
+    .sidebar-footer { padding: 14px 16px; border-top: 1px solid var(--border); }
+    .sidebar-footer .status { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--text-dim); }
+    .sidebar-footer .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .sidebar-footer .dot.offline { background: var(--red); }
+
+    /* ── Main Area ──────────────────────────────────── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .main-header {
+      padding: 16px 28px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .main-header h1 { font-size: 1.25rem; font-weight: 600; }
+    .main-header .user-input {
+      display: flex; align-items: center; gap: 8px; font-size: .85rem;
+    }
+    .main-header .user-input label { color: var(--text-dim); }
+    .main-header .user-input input {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 10px; border-radius: 6px; width: 150px; font-size: .85rem;
+    }
+    .content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Chat Page ──────────────────────────────────── */
+    .chat-container { display: flex; flex-direction: column; height: 100%; }
+    .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-bottom: 16px; }
+    .msg { max-width: 85%; padding: 14px 18px; border-radius: var(--radius); line-height: 1.55; }
+    .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+    .msg.assistant { align-self: flex-start; background: var(--bg-card); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+    .msg.assistant .label { font-size: .7rem; color: var(--accent-hover); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+    .msg pre { background: var(--bg); padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: .82rem; margin-top: 8px; border: 1px solid var(--border); }
+    .chat-input-row { display: flex; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .chat-input-row input {
+      flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 12px 16px; border-radius: var(--radius); font-size: .95rem;
+    }
+    .chat-input-row input:focus { outline: none; border-color: var(--accent); }
+    .chat-input-row button { min-width: 52px; }
+
+    /* ── Reasoning Trace ───────────────────────────── */
+    .trace-toggle { font-size: .78rem; color: var(--accent-hover); cursor: pointer; margin-top: 10px; user-select: none; }
+    .trace-toggle:hover { text-decoration: underline; }
+    .trace-panel { display: none; margin-top: 10px; }
+    .trace-panel.open { display: block; }
+    .trace-step {
+      border-left: 2px solid var(--border); padding: 6px 0 6px 12px; margin-bottom: 6px;
+      font-size: .8rem; color: var(--text-dim);
+    }
+    .trace-step .step-num { color: var(--accent-hover); font-weight: 600; }
+    .trace-step.status-success { border-color: var(--green); }
+    .trace-step.status-error { border-color: var(--red); }
+    .meta-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .badge {
+      font-size: .72rem; padding: 3px 8px; border-radius: 4px;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    }
+    .badge.confidence { border-color: var(--green); color: var(--green); }
+    .badge.cost { border-color: var(--yellow); color: var(--yellow); }
+    .badge.duration { border-color: var(--cyan); color: var(--cyan); }
+
+    /* ── Streaming indicator ───────────────────────── */
+    .streaming-dot { display: inline-block; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+
+    /* ── Leads Page ─────────────────────────────────── */
+    .leads-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .leads-toolbar .field { display: flex; flex-direction: column; gap: 3px; }
+    .leads-toolbar .field label { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+    .leads-toolbar .field input, .leads-toolbar .field select {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 10px; border-radius: 6px; font-size: .85rem; min-width: 120px;
+    }
+    .leads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+    .lead-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; transition: border-color .15s; cursor: default;
+    }
+    .lead-card:hover { border-color: var(--accent); }
+    .lead-card h3 { font-size: 1rem; margin-bottom: 4px; }
+    .lead-card .contact { font-size: .82rem; color: var(--text-dim); margin-bottom: 10px; }
+    .lead-card .tags-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .lead-card .tag { font-size: .7rem; background: var(--bg); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; color: var(--text-dim);}
+    .lead-detail-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: .8rem; }
+    .lead-detail-row span { color: var(--text-dim); }
+    .lead-detail-row strong { color: var(--text); }
+    .stage-badge {
+      display: inline-block; font-size: .7rem; padding: 2px 8px; border-radius: 4px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .03em;
+    }
+    .stage-prospecting { background: #1e3a5f; color: #60a5fa; }
+    .stage-qualified { background: #1e3b1e; color: #4ade80; }
+    .stage-proposal { background: #3b2f1e; color: #fbbf24; }
+    .stage-negotiation { background: #3b1e3b; color: #c084fc; }
+    .stage-closed_won { background: #064e3b; color: #34d399; }
+    .stage-closed_lost { background: #451a1a; color: #f87171; }
+    .priority-high { color: var(--red); }
+    .priority-medium { color: var(--yellow); }
+    .priority-low { color: var(--green); }
+    .total-count { font-size: .85rem; color: var(--text-dim); margin-bottom: 14px; }
+
+    /* ── Meetings Page ─────────────────────────────── */
+    .meetings-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .meetings-toolbar .field { display: flex; flex-direction: column; gap: 3px; }
+    .meetings-toolbar .field label { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+    .meetings-toolbar .field input, .meetings-toolbar .field select {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 10px; border-radius: 6px; font-size: .85rem; min-width: 170px;
+    }
+    .meetings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+    .meeting-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px;
+    }
+    .meeting-card h3 { font-size: .98rem; margin-bottom: 8px; }
+    .meeting-meta { font-size: .82rem; color: var(--text-dim); line-height: 1.6; }
+    .meeting-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+
+    /* ── Preferences Page ──────────────────────────── */
+    .prefs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 700px; }
+    .prefs-grid .field { display: flex; flex-direction: column; gap: 4px; }
+    .prefs-grid .field label { font-size: .75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+    .prefs-grid .field input, .prefs-grid .field select, .prefs-grid .field textarea {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 6px; font-size: .88rem; font-family: inherit;
+    }
+    .prefs-grid .field textarea { resize: vertical; min-height: 60px; }
+    .prefs-grid .field.full { grid-column: 1 / -1; }
+    .prefs-actions { margin-top: 16px; display: flex; gap: 10px; }
+
+    /* ── Analytics Page ─────────────────────────────── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; text-align: center;
+    }
+    .stat-card .value { font-size: 2rem; font-weight: 700; color: var(--accent-hover); }
+    .stat-card .label { font-size: .78rem; color: var(--text-dim); margin-top: 4px; }
+    .chart-section { margin-bottom: 24px; }
+    .chart-section h3 { font-size: .95rem; margin-bottom: 12px; color: var(--text-dim); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-row .bar-label { min-width: 120px; font-size: .82rem; text-align: right; color: var(--text-dim); }
+    .bar-row .bar-track { flex: 1; height: 24px; background: var(--bg); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-row .bar-fill { height: 100%; border-radius: 4px; transition: width .4s ease; display: flex; align-items: center; padding-left: 8px; font-size: .75rem; font-weight: 600; }
+    .bar-row .bar-count { min-width: 30px; font-size: .82rem; color: var(--text-dim); }
+
+    /* ── Memory Page ────────────────────────────────── */
+    .memory-section { margin-bottom: 24px; }
+    .memory-section h3 { font-size: .95rem; margin-bottom: 10px; color: var(--text-dim); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .interaction-item {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px 16px; margin-bottom: 8px;
+    }
+    .interaction-item .req { font-weight: 600; margin-bottom: 4px; }
+    .interaction-item .meta { font-size: .78rem; color: var(--text-dim); display: flex; gap: 12px; }
+
+    /* ── Buttons ────────────────────────────────────── */
+    .btn {
+      background: var(--accent); color: #fff; border: none; padding: 9px 18px;
+      border-radius: 8px; font-size: .88rem; cursor: pointer; font-weight: 600;
+      transition: background .15s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-outline {
+      background: none; border: 1px solid var(--border); color: var(--text-dim);
+      padding: 8px 16px; border-radius: 8px; font-size: .85rem; cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent-hover); }
+    .btn-danger { background: var(--red); }
+    .btn-danger:hover { background: #dc2626; }
+
+    /* ── Utility ────────────────────────────────────── */
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 40px; color: var(--text-dim); font-size: .95rem; }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--bg-card); border: 1px solid var(--border);
+      padding: 12px 20px; border-radius: var(--radius); box-shadow: var(--shadow); font-size: .88rem;
+      z-index: 999; transition: opacity .3s, transform .3s; opacity: 0; transform: translateY(10px);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { border-color: var(--red); }
+    .toast.success { border-color: var(--green); }
+  </style>
+</head>
+<body>
+
+<!-- ─── Sidebar ─────────────────────────────────────── -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    🤖 CRM AI Assistant
+    <small>Multi-Agent Orchestration System</small>
+  </div>
+  <nav>
+    <button class="active" data-page="chat"><span class="icon">💬</span> AI Chat</button>
+    <button data-page="leads"><span class="icon">👥</span> Leads</button>
+    <button data-page="meetings"><span class="icon">📅</span> Meetings</button>
+    <button data-page="preferences"><span class="icon">⚙️</span> Preferences</button>
+    <button data-page="analytics"><span class="icon">📊</span> Analytics</button>
+    <button data-page="memory"><span class="icon">🧠</span> Memory</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="status"><span class="dot" id="statusDot"></span> <span id="statusText">Checking...</span></div>
+  </div>
+</div>
+
+<!-- ─── Main ────────────────────────────────────────── -->
+<div class="main">
+  <div class="main-header">
+    <h1 id="pageTitle">AI Chat</h1>
+    <div class="user-input">
+      <label>User ID:</label>
+      <input id="userId" value="default_user" />
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- ── Chat Page ──────────────────────────────── -->
+    <div class="page active" id="page-chat">
+      <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg assistant">
+            <div class="label">Assistant</div>
+            <div>Hi! I'm your CRM AI assistant. Try asking me things like:</div>
+            <pre>• Show me fintech leads in New York
+• Write a cold email to HealthSync
+• Draft follow-up emails to enterprise leads
+• Make the tone more casual
+• Don't say "synergy" in emails</pre>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" id="chatInput" placeholder="Ask me anything about your CRM..." />
+          <button class="btn" id="chatSend">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Leads Page ─────────────────────────────── -->
+    <div class="page" id="page-leads">
+      <div class="leads-toolbar">
+        <div class="field">
+          <label>Search</label>
+          <input id="leadSearch" placeholder="Name, company, notes..." />
+        </div>
+        <div class="field">
+          <label>Industry</label>
+          <input id="leadIndustry" placeholder="e.g. fintech" />
+        </div>
+        <div class="field">
+          <label>Location</label>
+          <input id="leadLocation" placeholder="e.g. NYC" />
+        </div>
+        <div class="field">
+          <label>Deal Stage</label>
+          <select id="leadStage">
+            <option value="">All</option>
+            <option value="prospecting">Prospecting</option>
+            <option value="qualified">Qualified</option>
+            <option value="proposal">Proposal</option>
+            <option value="negotiation">Negotiation</option>
+            <option value="closed_won">Closed Won</option>
+            <option value="closed_lost">Closed Lost</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Company Size</label>
+          <select id="leadSize">
+            <option value="">All</option>
+            <option value="startup">Startup</option>
+            <option value="mid-market">Mid-Market</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+        <button class="btn" onclick="loadLeads()">Search</button>
+        <button class="btn-outline" onclick="clearLeadFilters()">Clear</button>
+      </div>
+      <div class="total-count" id="leadsCount"></div>
+      <div class="leads-grid" id="leadsGrid"></div>
+    </div>
+
+    <!-- ── Meetings Page ──────────────────────────── -->
+    <div class="page" id="page-meetings">
+      <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:16px;">Create, view, and cancel meetings. Scheduling conflicts are blocked automatically.</p>
+
+      <div class="meetings-toolbar">
+        <div class="field">
+          <label>Title</label>
+          <input id="meetingTitle" placeholder="Call with John from Apple" />
+        </div>
+        <div class="field">
+          <label>Lead</label>
+          <select id="meetingLeadId"></select>
+        </div>
+        <div class="field">
+          <label>Start Time</label>
+          <input id="meetingStart" type="datetime-local" />
+        </div>
+        <div class="field">
+          <label>End Time</label>
+          <input id="meetingEnd" type="datetime-local" />
+        </div>
+        <button class="btn" onclick="createMeeting()">Create</button>
+        <button class="btn-outline" onclick="loadMeetings()">Reload</button>
+      </div>
+
+      <div class="total-count" id="meetingsCount"></div>
+      <div class="meetings-grid" id="meetingsGrid"></div>
+    </div>
+
+    <!-- ── Preferences Page ───────────────────────── -->
+    <div class="page" id="page-preferences">
+      <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:16px;">Configure how the AI writes emails for you. Changes are saved per user.</p>
+      <div class="prefs-grid" id="prefsForm">
+        <div class="field">
+          <label>Tone</label>
+          <select id="prefTone">
+            <option value="professional">Professional</option>
+            <option value="friendly">Friendly</option>
+            <option value="casual">Casual</option>
+            <option value="formal">Formal</option>
+            <option value="assertive">Assertive</option>
+            <option value="consultative">Consultative</option>
+            <option value="direct">Direct</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Preferred Length</label>
+          <select id="prefLength">
+            <option value="short">Short</option>
+            <option value="medium">Medium</option>
+            <option value="long">Long</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sender Name</label>
+          <input id="prefSenderName" />
+        </div>
+        <div class="field">
+          <label>Sender Title</label>
+          <input id="prefSenderTitle" />
+        </div>
+        <div class="field">
+          <label>Company Name</label>
+          <input id="prefCompanyName" />
+        </div>
+        <div class="field">
+          <label>Sign-Off</label>
+          <input id="prefSignOff" placeholder="e.g. Best regards" />
+        </div>
+        <div class="field full">
+          <label>Signature (multi-line)</label>
+          <textarea id="prefSignature" rows="3"></textarea>
+        </div>
+        <div class="field full">
+          <label>Avoid Phrases (comma-separated)</label>
+          <input id="prefAvoid" placeholder="synergy, leverage, paradigm" />
+        </div>
+        <div class="field full">
+          <label>Style Notes (comma-separated)</label>
+          <input id="prefStyle" placeholder="always include a CTA, use bullet points" />
+        </div>
+      </div>
+      <div class="prefs-actions">
+        <button class="btn" onclick="savePreferences()">Save Preferences</button>
+        <button class="btn-outline" onclick="loadPreferences()">Reload</button>
+      </div>
+    </div>
+
+    <!-- ── Analytics Page ─────────────────────────── -->
+    <div class="page" id="page-analytics">
+      <div class="stats-grid" id="statsGrid"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="chart-section">
+          <h3>Intent Distribution</h3>
+          <div class="bar-chart" id="intentChart"></div>
+        </div>
+        <div class="chart-section">
+          <h3>Lead Pipeline</h3>
+          <div class="bar-chart" id="pipelineChart"></div>
+        </div>
+      </div>
+      <div class="chart-section">
+        <h3>Recent Activity</h3>
+        <div id="recentActivity"></div>
+      </div>
+    </div>
+
+    <!-- ── Memory Page ──────────────────────────────── -->
+    <div class="page" id="page-memory">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <p style="font-size:.85rem;color:var(--text-dim);">Inspect the AI's memory for this user — interaction history and preference evolution.</p>
+        <button class="btn btn-danger" onclick="clearMemory()" style="font-size:.8rem;padding:6px 14px;">Clear Memory</button>
+      </div>
+      <div class="memory-section">
+        <h3>Current Preferences</h3>
+        <div id="memPrefsView"></div>
+      </div>
+      <div class="memory-section">
+        <h3>Feedback History</h3>
+        <div id="memFeedback"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Config ──────────────────────────────────────────────
+const API = window.location.origin + '/api';
+
+function uid() { return document.getElementById('userId').value || 'default_user'; }
+
+// ─── Toast ───────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = 'toast', 3000);
+}
+
+// ─── Navigation ──────────────────────────────────────────
+const pageTitles = { chat: 'AI Chat', leads: 'Leads CRM', meetings: 'Meetings Calendar', preferences: 'Email Preferences', analytics: 'Analytics Dashboard', memory: 'User Memory' };
+
+document.querySelectorAll('.sidebar nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sidebar nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const page = btn.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.getElementById('pageTitle').textContent = pageTitles[page];
+    // Auto-load data
+    if (page === 'leads') loadLeads();
+    if (page === 'meetings') { loadMeetingLeadOptions(); loadMeetings(); }
+    if (page === 'preferences') loadPreferences();
+    if (page === 'analytics') loadAnalytics();
+    if (page === 'memory') loadMemory();
+  });
+});
+
+// ─── Health Check ────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    if (r.ok) {
+      document.getElementById('statusDot').className = 'dot';
+      document.getElementById('statusText').textContent = 'API Connected';
+    } else throw 0;
+  } catch {
+    document.getElementById('statusDot').className = 'dot offline';
+    document.getElementById('statusText').textContent = 'API Offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+// ═══════════════════════════════════════════════════════════
+// ─── CHAT (SSE Streaming) ────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+chatSend.addEventListener('click', sendChat);
+
+async function sendChat() {
+  const msg = chatInput.value.trim();
+  if (!msg) return;
+  chatInput.value = '';
+  chatSend.disabled = true;
+
+  // User message
+  const userEl = document.createElement('div');
+  userEl.className = 'msg user';
+  userEl.textContent = msg;
+  chatMessages.appendChild(userEl);
+
+  // Assistant placeholder
+  const asstEl = document.createElement('div');
+  asstEl.className = 'msg assistant';
+  asstEl.innerHTML = '<div class="label">Assistant</div><div class="streaming-dot">⏳ Thinking...</div>';
+  chatMessages.appendChild(asstEl);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  try {
+    // Use SSE streaming
+    const response = await fetch(API + '/query/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, userId: uid() }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let steps = [];
+    let result = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === 'step') steps.push(data.step);
+          if (data.type === 'result') result = data;
+        } catch {}
+      }
+    }
+
+    // Render result
+    if (result) {
+      let html = '<div class="label">Assistant</div>';
+      html += '<div>' + escapeHtml(result.response).replace(/\n/g, '<br>') + '</div>';
+      html += renderReasoningOverview(result);
+
+      // Data (leads/emails)
+      if (result.data) {
+        if (result.data.leads) {
+          html += `<pre>${JSON.stringify(result.data.leads, null, 2).slice(0, 2000)}</pre>`;
+        }
+        if (result.data.emails) {
+          for (const email of result.data.emails) {
+            html += `<pre><b>Subject:</b> ${escapeHtml(email.subject || '')}\n\n${escapeHtml(email.body || '')}</pre>`;
+          }
+        }
+      }
+
+      // Meta badges
+      html += '<div class="meta-badges">';
+      if (result.confidence != null) html += `<span class="badge confidence">Confidence: ${(result.confidence * 100).toFixed(0)}%</span>`;
+      if (result.usage?.estimatedCost != null) html += `<span class="badge cost">Cost: $${result.usage.estimatedCost.toFixed(6)}</span>`;
+      if (result.totalDurationMs != null) html += `<span class="badge duration">${result.totalDurationMs}ms</span>`;
+      if (result.usage?.llmCalls != null) html += `<span class="badge">${result.usage.llmCalls} LLM call(s)</span>`;
+      if (result.success === false) html += `<span class="badge" style="border-color:var(--red);color:var(--red);">Failed</span>`;
+      html += '</div>';
+
+      // Reasoning trace (collapsible)
+      if (steps.length > 0) {
+        const traceId = 'trace-' + Date.now();
+        html += `<div class="trace-toggle" onclick="document.getElementById('${traceId}').classList.toggle('open')">▶ Reasoning Trace (${steps.length} steps)</div>`;
+        html += `<div class="trace-panel" id="${traceId}">`;
+        for (const s of steps) {
+          html += `<div class="trace-step status-${s.status || 'success'}">`;
+          html += `<span class="step-num">Step ${s.step}</span> — <b>${escapeHtml(s.action)}</b>`;
+          html += `<br>${escapeHtml(s.thought)}`;
+          if (s.durationMs) html += ` <span style="color:var(--cyan)">(${s.durationMs}ms)</span>`;
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+
+      // Decisions
+      if (result.decisions && result.decisions.length > 0) {
+        const decId = 'dec-' + Date.now();
+        html += `<div class="trace-toggle" onclick="document.getElementById('${decId}').classList.toggle('open')">▶ Decisions (${result.decisions.length})</div>`;
+        html += `<div class="trace-panel" id="${decId}">`;
+        for (const d of result.decisions) {
+          html += `<div class="trace-step"><b>${escapeHtml(d.decision)}</b> — ${escapeHtml(d.reason)} <span style="color:var(--text-dim)">[${d.source}]</span></div>`;
+        }
+        html += '</div>';
+      }
+
+      asstEl.innerHTML = html;
+    } else {
+      asstEl.innerHTML = '<div class="label">Assistant</div><div>No response received.</div>';
+    }
+  } catch (err) {
+    // Fallback to non-streaming endpoint
+    try {
+      const r = await fetch(API + '/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, userId: uid() }),
+      });
+      const data = await r.json();
+      let html = '<div class="label">Assistant</div>';
+      html += '<div>' + escapeHtml(data.response || data.message || 'Error').replace(/\n/g, '<br>') + '</div>';
+      html += renderReasoningOverview(data);
+      if (data.data?.emails) {
+        for (const email of data.data.emails) {
+          html += `<pre><b>Subject:</b> ${escapeHtml(email.subject || '')}\n\n${escapeHtml(email.body || '')}</pre>`;
+        }
+      }
+      if (data.confidence != null) {
+        html += '<div class="meta-badges">';
+        html += `<span class="badge confidence">Confidence: ${(data.confidence * 100).toFixed(0)}%</span>`;
+        if (data.usage?.estimatedCost != null) html += `<span class="badge cost">Cost: $${data.usage.estimatedCost.toFixed(6)}</span>`;
+        if (data.meta?.totalDurationMs != null) html += `<span class="badge duration">${data.meta.totalDurationMs}ms</span>`;
+        html += '</div>';
+      }
+      asstEl.innerHTML = html;
+    } catch (e2) {
+      asstEl.innerHTML = '<div class="label">Assistant</div><div style="color:var(--red);">Failed to connect to the API. Is the server running?</div>';
+    }
+  }
+
+  chatSend.disabled = false;
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderReasoningOverview(payload) {
+  const plan = payload.plan || {};
+  const raw = payload.rawPlan || {};
+  const hasPlan = plan.intent || (Array.isArray(plan.steps) && plan.steps.length > 0) || (Array.isArray(plan.agentsNeeded) && plan.agentsNeeded.length > 0);
+  if (!hasPlan) return '';
+
+  const panelId = 'plan-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  let html = `<div class="trace-toggle" onclick="document.getElementById('${panelId}').classList.toggle('open')">▶ Planning & Intent</div>`;
+  html += `<div class="trace-panel" id="${panelId}">`;
+
+  html += `<div class="trace-step">`;
+  html += `<span class="step-num">Intent</span> — <b>${escapeHtml(plan.intent || 'general_query')}</b>`;
+  html += `</div>`;
+
+  const agents = Array.isArray(plan.agentsNeeded) ? plan.agentsNeeded : [];
+  html += `<div class="trace-step">`;
+  html += `<span class="step-num">Agent Routing</span> — ${agents.length ? `<b>${agents.join(' → ')}</b>` : 'No agent needed'}`;
+  html += `</div>`;
+
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  html += `<div class="trace-step">`;
+  html += `<span class="step-num">Task Breakdown</span>`;
+  if (steps.length) {
+    html += `<br>${steps.map((s, i) => `${i + 1}. ${escapeHtml(s)}`).join('<br>')}`;
+  } else {
+    html += `<br>No explicit subtasks`;
+  }
+  html += `</div>`;
+
+  const entities = raw.entities || {};
+  const hasEntities = entities.contactName || entities.company;
+  if (hasEntities) {
+    html += `<div class="trace-step"><span class="step-num">Extracted Entities</span> — `;
+    const entityParts = [];
+    if (entities.contactName) entityParts.push(`contact: <b>${escapeHtml(entities.contactName)}</b>`);
+    if (entities.company) entityParts.push(`company: <b>${escapeHtml(entities.company)}</b>`);
+    html += entityParts.join(', ') + `</div>`;
+  }
+
+  if (raw.leadQuery && Object.keys(raw.leadQuery).length > 0) {
+    const leadQuerySummary = Object.entries(raw.leadQuery)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(String(v))}`)
+      .join(', ');
+    if (leadQuerySummary) {
+      html += `<div class="trace-step"><span class="step-num">Lead Filters</span> — ${leadQuerySummary}</div>`;
+    }
+  }
+
+  if (raw.emailType || raw.customInstructions) {
+    html += `<div class="trace-step"><span class="step-num">Email Plan</span> — `;
+    if (raw.emailType) html += `type: <b>${escapeHtml(raw.emailType)}</b>`;
+    if (raw.customInstructions) html += `${raw.emailType ? ' | ' : ''}notes: ${escapeHtml(raw.customInstructions)}`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ─── LEADS ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+async function loadLeads() {
+  const params = new URLSearchParams();
+  const search = document.getElementById('leadSearch').value;
+  const industry = document.getElementById('leadIndustry').value;
+  const location = document.getElementById('leadLocation').value;
+  const stage = document.getElementById('leadStage').value;
+  const size = document.getElementById('leadSize').value;
+
+  if (search) params.set('search', search);
+  if (industry) params.set('industry', industry);
+  if (location) params.set('location', location);
+  if (stage) params.set('dealStage', stage);
+  if (size) params.set('companySize', size);
+  params.set('limit', '50');
+
+  try {
+    const r = await fetch(API + '/leads?' + params);
+    const data = await r.json();
+    document.getElementById('leadsCount').textContent = `Showing ${data.leads.length} of ${data.totalCount} leads`;
+    renderLeads(data.leads);
+  } catch {
+    toast('Failed to load leads', 'error');
+  }
+}
+
+function renderLeads(leads) {
+  const grid = document.getElementById('leadsGrid');
+  if (!leads.length) { grid.innerHTML = '<div class="empty-state">No leads found. Try different filters.</div>'; return; }
+  grid.innerHTML = leads.map(l => `
+    <div class="lead-card">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <h3>${escapeHtml(l.company)}</h3>
+        <span class="stage-badge stage-${l.dealStage}">${l.dealStage.replace('_',' ')}</span>
+      </div>
+      <div class="contact">${escapeHtml(l.contactName)} · ${escapeHtml(l.contactEmail)}</div>
+      <div class="lead-detail-row">
+        <span>Industry: <strong>${escapeHtml(l.industry)}</strong></span>
+        <span>Location: <strong>${escapeHtml(l.location)}</strong></span>
+        <span>Priority: <strong class="priority-${l.priority}">${l.priority}</strong></span>
+        ${l.estimatedValue ? `<span>Value: <strong>$${l.estimatedValue.toLocaleString()}</strong></span>` : ''}
+      </div>
+      <div class="lead-detail-row">
+        <span>Size: <strong>${l.companySize}</strong></span>
+        <span>Source: <strong>${l.source}</strong></span>
+      </div>
+      ${l.tags?.length ? `<div class="tags-row">${l.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      ${l.notes ? `<div style="margin-top:8px;font-size:.8rem;color:var(--text-dim);font-style:italic;">${escapeHtml(l.notes).slice(0,120)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function clearLeadFilters() {
+  document.getElementById('leadSearch').value = '';
+  document.getElementById('leadIndustry').value = '';
+  document.getElementById('leadLocation').value = '';
+  document.getElementById('leadStage').value = '';
+  document.getElementById('leadSize').value = '';
+  loadLeads();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ─── MEETINGS ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+async function loadMeetingLeadOptions() {
+  const select = document.getElementById('meetingLeadId');
+  try {
+    const r = await fetch(API + '/leads?limit=100');
+    const data = await r.json();
+    const leads = data.leads || [];
+
+    if (!leads.length) {
+      select.innerHTML = '<option value="">No leads found</option>';
+      return;
+    }
+
+    select.innerHTML = leads
+      .map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.contactName)} — ${escapeHtml(l.company)}</option>`)
+      .join('');
+  } catch {
+    select.innerHTML = '<option value="">Failed to load leads</option>';
+  }
+}
+
+async function createMeeting() {
+  const title = document.getElementById('meetingTitle').value.trim();
+  const leadId = document.getElementById('meetingLeadId').value;
+  const startRaw = document.getElementById('meetingStart').value;
+  const endRaw = document.getElementById('meetingEnd').value;
+
+  if (!title || !leadId || !startRaw || !endRaw) {
+    toast('Please fill title, lead, start time, and end time.', 'error');
+    return;
+  }
+
+  const body = {
+    title,
+    leadId,
+    startTime: new Date(startRaw).toISOString(),
+    endTime: new Date(endRaw).toISOString(),
+  };
+
+  try {
+    const r = await fetch(API + '/meetings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const data = await r.json();
+    if (!r.ok) {
+      toast(data.message || 'Failed to create meeting', 'error');
+      return;
+    }
+
+    toast('Meeting created successfully', 'success');
+    document.getElementById('meetingTitle').value = '';
+    document.getElementById('meetingStart').value = '';
+    document.getElementById('meetingEnd').value = '';
+    loadMeetings();
+  } catch {
+    toast('Failed to create meeting', 'error');
+  }
+}
+
+async function loadMeetings() {
+  try {
+    const r = await fetch(API + '/meetings?limit=100');
+    const data = await r.json();
+    const meetings = data.meetings || [];
+    document.getElementById('meetingsCount').textContent = `Showing ${meetings.length} meeting(s)`;
+    renderMeetings(meetings);
+  } catch {
+    toast('Failed to load meetings', 'error');
+  }
+}
+
+function renderMeetings(meetings) {
+  const grid = document.getElementById('meetingsGrid');
+  if (!meetings.length) {
+    grid.innerHTML = '<div class="empty-state">No meetings scheduled yet.</div>';
+    return;
+  }
+
+  grid.innerHTML = meetings.map(m => `
+    <div class="meeting-card">
+      <h3>${escapeHtml(m.title)}</h3>
+      <div class="meeting-meta">
+        <div><strong>Lead ID:</strong> ${escapeHtml(m.leadId)}</div>
+        <div><strong>Start:</strong> ${new Date(m.startTime).toLocaleString()}</div>
+        <div><strong>End:</strong> ${new Date(m.endTime).toLocaleString()}</div>
+        <div><strong>ID:</strong> ${escapeHtml(m.id)}</div>
+      </div>
+      <div class="meeting-actions">
+        <button class="btn-danger btn" onclick="deleteMeeting('${escapeHtml(m.id)}')" style="padding:6px 12px;font-size:.78rem;">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function deleteMeeting(id) {
+  if (!confirm(`Delete meeting ${id}?`)) return;
+  try {
+    const r = await fetch(API + '/meetings/' + encodeURIComponent(id), { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok) {
+      toast(data.message || 'Failed to delete meeting', 'error');
+      return;
+    }
+    toast('Meeting deleted', 'success');
+    loadMeetings();
+  } catch {
+    toast('Failed to delete meeting', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ─── PREFERENCES ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+async function loadPreferences() {
+  try {
+    const r = await fetch(API + '/preferences?userId=' + encodeURIComponent(uid()));
+    const p = await r.json();
+    document.getElementById('prefTone').value = p.tone || 'professional';
+    document.getElementById('prefLength').value = p.preferredLength || 'medium';
+    document.getElementById('prefSenderName').value = p.senderName || '';
+    document.getElementById('prefSenderTitle').value = p.senderTitle || '';
+    document.getElementById('prefCompanyName').value = p.companyName || '';
+    document.getElementById('prefSignOff').value = p.signOff || '';
+    document.getElementById('prefSignature').value = p.signature || '';
+    document.getElementById('prefAvoid').value = (p.avoidPhrases || []).join(', ');
+    document.getElementById('prefStyle').value = (p.styleNotes || []).join(', ');
+  } catch {
+    toast('Failed to load preferences', 'error');
+  }
+}
+
+async function savePreferences() {
+  const body = {
+    userId: uid(),
+    tone: document.getElementById('prefTone').value,
+    preferredLength: document.getElementById('prefLength').value,
+    senderName: document.getElementById('prefSenderName').value,
+    senderTitle: document.getElementById('prefSenderTitle').value,
+    companyName: document.getElementById('prefCompanyName').value,
+    signOff: document.getElementById('prefSignOff').value,
+    signature: document.getElementById('prefSignature').value,
+    avoidPhrases: document.getElementById('prefAvoid').value.split(',').map(s => s.trim()).filter(Boolean),
+    styleNotes: document.getElementById('prefStyle').value.split(',').map(s => s.trim()).filter(Boolean),
+  };
+
+  try {
+    const r = await fetch(API + '/preferences?userId=' + encodeURIComponent(uid()), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) toast('Preferences saved!', 'success');
+    else toast('Failed to save', 'error');
+  } catch {
+    toast('Failed to save preferences', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ─── ANALYTICS ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+const INTENT_COLORS = { fetch_leads: '#3b82f6', write_email: '#8b5cf6', fetch_and_email: '#06b6d4', update_preferences: '#f59e0b', summarize: '#10b981', general_query: '#6b7280' };
+const STAGE_COLORS = { prospecting: '#3b82f6', qualified: '#22c55e', proposal: '#eab308', negotiation: '#a855f7', closed_won: '#14b8a6', closed_lost: '#ef4444' };
+
+async function loadAnalytics() {
+  try {
+    const r = await fetch(API + '/analytics?userId=' + encodeURIComponent(uid()) + '&days=30');
+    const d = await r.json();
+
+    // Stat cards
+    const totalLeads = Object.values(d.pipeline || {}).reduce((a, b) => a + b, 0);
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card"><div class="value">${d.queries?.total ?? 0}</div><div class="label">Total Queries (30d)</div></div>
+      <div class="stat-card"><div class="value">${d.feedback?.total ?? 0}</div><div class="label">Feedback Given</div></div>
+      <div class="stat-card"><div class="value">${totalLeads}</div><div class="label">Total Leads</div></div>
+      <div class="stat-card"><div class="value">${Object.keys(d.queries?.intentDistribution || {}).length}</div><div class="label">Intent Types Used</div></div>
+    `;
+
+    // Intent chart
+    renderBarChart('intentChart', d.queries?.intentDistribution || {}, INTENT_COLORS);
+
+    // Pipeline chart
+    renderBarChart('pipelineChart', d.pipeline || {}, STAGE_COLORS);
+
+    // Recent activity
+    const activity = d.recentActivity || [];
+    document.getElementById('recentActivity').innerHTML = activity.length
+      ? activity.map(a => `
+        <div class="interaction-item">
+          <div class="req">${escapeHtml(a.request)}</div>
+          <div class="meta">
+            <span>Intent: <strong>${a.intent}</strong></span>
+            <span>Agents: ${(a.agentsUsed || []).join(', ') || 'none'}</span>
+            <span>${new Date(a.timestamp).toLocaleString()}</span>
+          </div>
+        </div>`).join('')
+      : '<div class="empty-state">No recent activity. Start chatting to build history!</div>';
+  } catch {
+    toast('Failed to load analytics', 'error');
+  }
+}
+
+function renderBarChart(containerId, data, colorMap) {
+  const el = document.getElementById(containerId);
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(e => e[1]), 1);
+
+  if (!entries.length) { el.innerHTML = '<div class="empty-state" style="padding:16px;">No data yet.</div>'; return; }
+
+  el.innerHTML = entries.map(([key, val]) => {
+    const pct = (val / max * 100).toFixed(1);
+    const color = colorMap[key] || '#6366f1';
+    return `
+      <div class="bar-row">
+        <div class="bar-label">${key.replace(/_/g, ' ')}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${pct}%;background:${color};">${val}</div>
+        </div>
+        <div class="bar-count">${val}</div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ─── MEMORY ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+async function loadMemory() {
+  try {
+    const r = await fetch(API + '/memory?userId=' + encodeURIComponent(uid()));
+    const snap = await r.json();
+
+    // Preferences view
+    const p = snap.preferences;
+    if (p) {
+      document.getElementById('memPrefsView').innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+          <div class="stat-card" style="padding:12px;text-align:left;">
+            <div class="label">Tone</div><div style="font-weight:600;margin-top:4px;">${p.tone}</div>
+          </div>
+          <div class="stat-card" style="padding:12px;text-align:left;">
+            <div class="label">Length</div><div style="font-weight:600;margin-top:4px;">${p.preferredLength}</div>
+          </div>
+          <div class="stat-card" style="padding:12px;text-align:left;">
+            <div class="label">Sender</div><div style="font-weight:600;margin-top:4px;">${escapeHtml(p.senderName || '—')}</div>
+          </div>
+          <div class="stat-card" style="padding:12px;text-align:left;">
+            <div class="label">Company</div><div style="font-weight:600;margin-top:4px;">${escapeHtml(p.companyName || '—')}</div>
+          </div>
+          <div class="stat-card" style="padding:12px;text-align:left;">
+            <div class="label">Sign-Off</div><div style="font-weight:600;margin-top:4px;">${escapeHtml(p.signOff || '—')}</div>
+          </div>
+          <div class="stat-card" style="padding:12px;text-align:left;">
+            <div class="label">Avoid Phrases</div><div style="font-weight:600;margin-top:4px;">${(p.avoidPhrases || []).join(', ') || '—'}</div>
+          </div>
+        </div>`;
+    } else {
+      document.getElementById('memPrefsView').innerHTML = '<div class="empty-state">No preferences set.</div>';
+    }
+
+    // Feedback history
+    const fb = snap.feedbackHistory || [];
+    document.getElementById('memFeedback').innerHTML = fb.length
+      ? fb.map(f => `
+        <div class="interaction-item">
+          <div class="req">"${escapeHtml(f.feedback)}"</div>
+          <div class="meta">
+            <span>Fields: ${(f.updates || []).map(u => u.field + ' (' + u.operation + ')').join(', ')}</span>
+            <span>${new Date(f.timestamp).toLocaleString()}</span>
+          </div>
+        </div>`).join('')
+      : '<div class="empty-state">No feedback recorded yet. Try telling the AI to change tone, length, or phrases to avoid.</div>';
+  } catch {
+    toast('Failed to load memory', 'error');
+  }
+}
+
+async function clearMemory() {
+  if (!confirm('Clear all interaction history and feedback for ' + uid() + '?')) return;
+  try {
+    await fetch(API + '/memory?userId=' + encodeURIComponent(uid()), { method: 'DELETE' });
+    toast('Memory cleared', 'success');
+    loadMemory();
+  } catch {
+    toast('Failed to clear memory', 'error');
+  }
+}
+</script>
+</body>
+</html>
